@@ -1,0 +1,10 @@
+
+var debug = require('debug')('nodejs_mongodb_socketio_chat');
+var socketIo = require('socket.io');
+var app = require('../app');
+app.set('port', process.env.PORT || 9080);
+var server = app.listen(app.get('port'), function(err) {
+  	console.log('Express server listening on port ' + server.address().port);
+    exports.socketIo.connection = socketIo.listen(server);  
+});
+exports.socketIo = {};

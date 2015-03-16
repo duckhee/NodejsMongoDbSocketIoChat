@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+	<title>CHAT</title>
+	<head>
+		<style type="text/css" >
+			#chatDialogSection {
+				position: fixed;
+				bottom: -5px;
+				left: 10px;
+				z-index: 1;
+				width: 100%;
+			}
+			.chatIndividual {
+				border: 1px solid gray;
+				border-radius: 4px;
+				width: 290px;
+				height: 340px;
+				display: inline-block;
+				margin-right: 10px;
+				float: right;
+				margin-bottom: 50px;
+			}
+			.chatHead {
+				background: rgb(44, 133, 221);
+				padding-top: 3px;
+				color: white;
+				font-size: 20px;
+				text-align: left;
+				height: 35px;
+				cursor: pointer;
+			}
+			.chatHead span {
+				float: right;
+			}
+			.chatBody {
+				background: rgb(229, 228, 228);
+				height: 264px;
+			}
+			.chatMessageInput {
+				position: fixed;
+				bottom: -15px;
+				width: 289px;
+				border: none;
+			}
+			.chatTextArea {
+				width: 289px;
+			}
+			.red {
+				font-size: 100px;
+				color: red;
+			}
+			.black {
+				font-size: 100px;
+				color: black;
+			}
+			.green {
+				font-size: 100px;
+				color: green;
+			}
+			.yellow {
+				font-size: 100px;
+				color: yellow;
+			}
+			.gray {
+				font-size: 100px;
+				color: gray;
+			}
+			.user-Imgchat img {
+				width: 50px;
+				height: 50px;
+				border: solid 2px #2baecf;
+				border-radius: 5px;
+			}
+			.user-Imgchat span {
+				width: 50px;
+				height: 50px;
+				border: solid 2px #2baecf;
+				border-radius: 5px;
+			}
+			.show {
+				display: inline-block;
+			}
+		</style>
+	</head>
+	<body>
+
+		<input type="text" id="txtUserName" value=""/>
+		<button onclick="javascript:IntSocket();">
+			Click me
+		</button>
+		<div id="iochatDialogSection"></div>
+		<table style="width: 100%" id="tableUser">
+			<thead>
+				<tr>
+					<th>socketId</th>
+					<th>id</th>
+					<th>userName</th>
+					<th>emailId</th>
+					<th>status</th>
+				</tr>
+			</thead>
+			<tbody id="tbody"></tbody>
+		</table>
+
+		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+		<script src="https://cdn.socket.io/socket.io-1.2.1.js"></script>
+		<script >
+			$(document).ready(function() {
+
+			});
+			function getParameterByName(name) {
+				name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+				var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+				    results = regex.exec(location.search);
+				return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+			}
+
+
+			$('#txtUserName').val(getParameterByName('selectedId'));
+			var appUrl = window.location.origin || window.location.protocol + '//' + window.location.host;
+			var socket,
+			    mySocketId,
+			    selectedSocketId,
+			    userList = [],
+
+			    smiliesMap = {
+				":)" : "1",
+				":(" : "2",
+				";)" : "3",
+				":d" : "4",
+				";;)" : "5",
+				":/" : "7",
+				":x" : "8",
+				":p" : "10",
+				":*" : "11",
+				":o" : "13",
+				":>" : "15",
+				":s" : "17",
+				":((" : "20",
+				":))" : "21",
+				":|" : "22",
+				":b" : "26",
+				":&" : "31",
+				":$" : "32",
+				":?" : "39",
+				"#o" : "40",
+				":ss" : "42",
+				"@)" : "43",
+				":w" : "45",
+				":c" : "101",
+				":h" : "103",
+				":t" : "104",
+				":q" : "112"
+			},
+			    smileyReg = /[:;#@]{1,2}[\)\/\(\&\$\>\|xXbBcCdDpPoOhHsStTqQwW*?]{1,2}/g;
+			function IntSocket() {
+				console.log('login ' + $('#txtUserName').val());
+				socket = io(appUrl);
+				socket.emit('add user', $('#txtUserName').val());
+
+				//Whenever the server emits 'login', log the login message
+				socket.on('login', function(data) {
+					console.log('login ' + data.socketId);
+					mySocketId = data.socketId;
+					socket.emit('getUserList', $('#txtUserName').val());
+				});
+
+				// Whenever the server emits 'new message', update the chat body
+				socket.on('new message', function(data) {
+					console.log("received new message");
+					var client = userList.filter(function(clientItem) {
+						return (data.fromSocketId == clientItem.socketId);
+					});
+					if (client.length > 0) {
+						console.log("received new message id " + client[0].socketId);
+						CreateUserPopup(client[0]);
+
+						var messageSmilies = data.messageData.match(smileyReg) || [];
+						for (var i = 0; i < messageSmilies.length; i++) {
+							var messageSmiley = messageSmilies[i],
+							    messageSmileyLower = messageSmiley.toLowerCase();
+							if (smiliesMap[messageSmileyLower]) {
+								data.messageData = data.messageData.replace(messageSmiley, "<img src='images/chat/" + smiliesMap[messageSmileyLower] + ".gif' alt='smiley' />");
+							}
+						}
+
+						$('#chatBody' + client[0].id).append('<div> ' + client[0].userName + ' : ' + data.messageData + '</div>');
+						console.log("received new message " + data.messageData);
+					}
+				});
+
+				// Whenever the server emits 'user joined', log it in the chat body
+				socket.on('getUserList', function(data) {
+					console.log('getUserList');
+					console.log('getUserList' + data.userList);
+					userList = JSON.parse(data.userList);
+					BindUser(userList);
+
+				});
+
+				// Whenever the server emits 'user joined', log it in the chat body
+				socket.on('user joined', function(data) {
+					console.log('joined 0 ' + data.clientId);
+					if (userList != null && userList != undefined && userList.length > 0) {
+						var client = userList.filter(function(clientItem) {
+							console.log("clientItem id " + clientItem.id);
+							return (data.clientId == clientItem.id);
+						});
+						if (client.length > 0) {
+							console.log('joined 1 ' + client[0].socketId);
+							client[0].socketId = data.socketId;
+							client[0].status = data.status;
+							console.log('joined 2 ' + client[0].socketId);
+							BindUser(userList);
+						}
+					}
+				});
+
+				// Whenever the server emits 'user left', log it in the chat body
+				socket.on('user left', function(data) {
+					console.log('left ' + data.socketName);
+					var client = userList.filter(function(clientItem) {
+						return (data.fromSocketId == clientItem.socketId);
+					});
+					if (client.length > 0) {
+						client[0].socketId = '';
+						client[0].status = 'Sign out';
+						BindUser(userList);
+					}
+				});
+
+				// Whenever the server emits 'typing', show the typing message
+				socket.on('typing', function(data) {
+					console.log("typing");
+					var client = userList.filter(function(clientItem) {
+						return (data.socketId == clientItem.socketId);
+					});
+					if (client.length > 0) {
+						console.log("typing " + client[0].socketId);
+						CreateUserPopup(client[0]);
+						$('#typing' + client[0].id).css('display', 'block');
+
+					}
+				});
+
+				// Whenever the server emits 'stop typing', kill the typing message
+				socket.on('stop typing', function(data) {
+					console.log("stop typing");
+					var client = userList.filter(function(clientItem) {
+						return (data.socketId == clientItem.socketId);
+					});
+					if (client.length > 0) {
+						console.log("stop typing " + client[0].socketId);
+						CreateUserPopup(client[0]);
+						$('#typing' + client[0].id).css('display', 'none');
+					}
+				});
+
+				socket.on('status', function(data) {
+					console.log("status " + data.status);
+					var client = userList.filter(function(clientItem) {
+						return (data.socketId == clientItem.socketId);
+					});
+					if (client.length > 0) {
+						console.log("status " + client[0].socketId);
+						client[0].status = data.status;
+					}
+				});
+
+				socket.on('error', function(err) {
+					if (err === 'handshake error') {
+						console.log('handshake error', err);
+						content.html($('<p>', {
+							text : 'Sorry, but there\'s some problem with your ' + 'connection or the server is down.'
+						}));
+					} else {
+						console.log('io error', err);
+					}
+				});
+
+			};
+
+			function BindUser(userList) {
+				$("#tbody").empty();
+				$.each(userList, function(key, item) {
+					if (item.socketId != mySocketId) {
+						$('#tbody').append("");
+						var eachrow = "<tr>" + "<td>" + item.socketId + "</td>" + "<td>" + item.id + "</td>" + "<td>" + item.userName + "</td>" + "<td>" + item.emailId + "</td>" + "<td>" + item.status + "</td>" + "</tr>";
+						$('#tbody').append(eachrow);
+						$('#tableUser').on('click', 'tr', function() {
+							var selectedId = $(this).find('td:first').text();
+							if (selectedId != '') {
+								var client = userList.filter(function(clientItem) {
+									return (clientItem.socketId == selectedId);
+								});
+								if (client.length > 0) {
+									console.log('selected user ' + client[0].socketId);
+									CreateUserPopup(client[0]);
+								}
+							} else {
+								alert("This User not in online");
+							}
+						});
+					};
+				});
+			}
+
+			function CreateUserPopup(user) {
+				if (user.socketId != null && user.socketId != '') {
+					var id = user.id;
+					if ($('#chatIndividual' + id).length == 0) {
+						$('#iochatDialogSection').append('<div id="chatIndividual' + id + '" class="chatIndividual">' + '<div id="chatHead' + id + '" class="chatHead" >' + '<p>' + user.userName + '<span id="typing' + id + '" style="font-size: 10px;float: left;">...</span>' + '<span class="glyphicon glyphicon-remove"></span></p>' + '</div>' + '<div id="chatBody' + id + '" class="chatBody" style="overflow:auto"></div>' + '<div id="chatMessageInput">' + '<textarea id="chatMessageInput' + id + '" class="chatTextArea" placeholder="Enter your message"></textarea>' + '</div>' + '</div>');
+
+						$('#typing' + id).css('display', 'none');
+
+						$('#chatHead' + id).click(function() {
+							console.log(this.id.replace("chatHead", ''));
+							$('#chatIndividual' + id).remove();
+						});
+						$('#chatMessageInput' + id).focus(function() {
+							console.log(this.id.replace("chatMessageInput", ''));
+							selectedSocketId = user.socketId;
+						});
+						$('#chatMessageInput' + id).keydown(function(e) {
+							if (e.keyCode === 13) {
+								var msg = $(this).val();
+								if (!msg) {
+									return;
+								}
+								// send the message as an ordinary text
+								var sendData = JSON.stringify({
+									toSocketId : selectedSocketId,
+									messageData : msg
+								});
+								socket.emit('new message', sendData);
+
+								var messageSmilies = msg.match(smileyReg) || [];
+								for (var i = 0; i < messageSmilies.length; i++) {
+									var messageSmiley = messageSmilies[i],
+									    messageSmileyLower = messageSmiley.toLowerCase();
+									if (smiliesMap[messageSmileyLower]) {
+										msg = msg.replace(messageSmiley, "<img src='images/chat/" + smiliesMap[messageSmileyLower] + ".gif' alt='smiley' />");
+									}
+								}
+								$('#chatBody' + id).append('<div> ME :' + msg + '</div>');
+								$(this).val('');
+								socket.emit('stop typing', selectedSocketId);
+							} else {
+								socket.emit('typing', selectedSocketId);
+							}
+						});
+					}
+				} else {
+					alert("This User not in online");
+				}
+			}
+		</script>
+
+	</body>
+
+</html>
